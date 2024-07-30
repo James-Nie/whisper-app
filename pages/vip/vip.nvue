@@ -1,0 +1,47 @@
+<template>
+	<view>
+		<button @click="handlePayment">支付</button>
+	</view>
+</template>
+
+<script>
+	import { getPrices } from "@/server/index";
+	import { Iap } from "@/utils/iap";
+	import config from "@/config.js";
+	
+	let _iap;
+	
+	export default {
+		data() {
+			return {
+				iapChannel: null,
+				username: ''
+			}
+		},
+		onLoad() {
+			const user = uni.getStorageSync('userInfo');
+			this.username = user.user_name;
+		},
+		methods: {
+			async handlePayment() {
+				_iap = new Iap({
+					username: this.username,
+					productIds: config.payProductIds
+				});
+				_iap.getChannels().then(()=>{
+					_iap.requestPayment();
+				});
+				
+			}
+		},
+		beforeMount() {
+			getPrices((res => {
+				console.log('prices===', res)
+			}))
+		}
+	}
+</script>
+
+<style>
+
+</style>

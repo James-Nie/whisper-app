@@ -1,0 +1,117 @@
+<template>
+	<view>
+		<template v-if="Object.keys(friends).length">
+			<uni-swipe-action >
+				<view class="" v-for="(list, letter) in friends">
+					<uni-section class="mb-10" :title="letter"></uni-section>
+					<uni-swipe-action-item class="content-wrap" v-for="(item, index) in list"
+						:right-options="rightOption" @click="swipeClick($event, item)">
+						<view class="content-item" @click="toUserInfo(item)">
+							<view class="">
+								<Avatar
+									width="35"
+									height="35"
+									fontSize="14"
+									:url="item.user_avatar"
+									:nickName="item.nick_name"
+									@click="clickUserInfo(item.from)"
+								></Avatar>
+							</view>
+							<view class="">
+								<text class="name">{{item.nick_name}}</text>
+							</view>
+						</view>
+					</uni-swipe-action-item>
+				</view>
+			</uni-swipe-action>
+		</template>
+		
+		<Empty v-else text="咦,还没有好友"></Empty>
+	</view>
+</template>
+
+<script>
+	import { mapGetters, mapMutations } from 'vuex';
+	import { StorageKeys } from '@/utils/const';
+	import { getFriends } from '@/server/index';
+	import Avatar from '@/components/avatar.vue';
+	import Empty from '@/components/empty.vue';
+	
+	export default {
+		data() {
+			return {
+				rightOption: [{
+					text: '备注',
+					style: {
+						backgroundColor: 'rgb(254,156,1)'
+					}
+				}],
+			}
+		},
+		components: {
+			Avatar,
+			Empty
+		},
+		computed: {
+			...mapGetters([
+				'friends',
+			]),
+		},
+		watch: {
+			friends(newVal, oldVal) {
+				console.log(111222, newVal)
+			}
+		},
+		beforeMount() {
+			this.getFriendsData();
+			uni.$on('updateFriends', () => {
+				setTimeout(()=>{
+					this.getFriendsData();
+				}, 1000)
+			});
+		},
+		methods: {
+			...mapMutations(['updateFriends']),
+			toUserInfo(item) {
+				const {user_id, user_name, nick_name, user_avatar=''} = item;
+				uni.navigateTo({
+					url: `/pages/userInfo/userInfo?userId=${user_id}&userName=${user_name}&nickName=${nick_name}&avatar=${user_avatar}`
+				})
+			},
+			getFriendsData() {
+				getFriends({},(res) => {
+					this.updateFriends(res.data.list)
+					console.log('this.friendsList==', res.data.list)
+				})
+			},
+			swipeClick(e, data) {
+				console.log('data===', data)
+				let { content } = e;
+				if (content.text === '备注') {
+					
+				}
+			},
+		}
+	}
+</script>
+
+<style lang="scss">
+	.content-wrap {
+		border-bottom: 1px solid #e5e5e5;
+	}
+
+	.content-item {
+		display: flex;
+		flex-direction: row;
+		justify-content: space-between;
+		align-items: center;
+		height: 70px;
+		padding: 0 15px;
+		border-top: 1px solid #e5e5e5;
+
+		.name {
+			color: #3b4144;
+			font-size: 14px;
+		}
+	}
+</style>

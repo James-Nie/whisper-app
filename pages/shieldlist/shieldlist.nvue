@@ -1,0 +1,69 @@
+<template>
+	<view>
+		<uni-list :border="false" v-if="dataList.length">
+			<uni-list-item v-for="item in dataList" @click="handleClick(item)" class="list-item" clickable>
+				<template v-slot:header>
+					<Avatar
+						:url="item.user_avatar"
+						:nickName="item.nick_name"
+						:width="35"
+						:height="35"
+					></Avatar>
+				</template>
+				<template v-slot:body>
+					<text class="name">{{item.nick_name}}</text>
+				</template>
+			</uni-list-item>
+		</uni-list>
+		<Empty v-else ></Empty>
+	</view>
+</template>
+
+<script>
+	import {
+		getFriends
+	} from '@/server/index';
+	import Avatar from '@/components/avatar.vue';
+	import Empty from '@/components/empty.vue';
+	export default {
+		data() {
+			return {
+				dataList: []
+			}
+		},
+		components: {
+			Avatar,
+			Empty
+		},
+		methods: {
+			handleClick(item) {
+				const {user_id, user_name, nick_name, user_avatar=''} = item;
+				uni.navigateTo({
+					url: `/pages/userInfo/userInfo?userId=${user_id}&userName=${user_name}&nickName=${nick_name}&avatar=${user_avatar}&from=recycle`
+				})
+			},
+		},
+		onShow() {
+			getFriends({
+				isShield: true
+			}, (res) => {
+				const list = [];
+				Object.keys(res.data.list).forEach(key => {
+					 res.data.list[key].forEach(item => {
+						 list.push(item)
+					 })
+				})
+				this.dataList = list;
+			})
+		}
+	}
+</script>
+
+<style lang="scss">
+.list-item {
+	.name {
+		margin-top: 5px;
+		margin-left: 10px;
+	}
+}
+</style>

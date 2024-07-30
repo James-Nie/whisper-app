@@ -1,0 +1,347 @@
+<template>
+	<view class="page-wrap">
+		<uni-list :border="false">
+			<uni-list-item link clickable>
+				<template v-slot:header>
+					<view class="slot-title">
+						头像
+					</view>
+				</template>
+				<template v-slot:footer>
+						<view class="slot-image">
+							<Avatar
+								:url="userInfo.user_avatar"
+								:nickName="userInfo.nick_name"
+								@click="uploadAvatar"
+							></Avatar>
+						</view>
+				</template>
+			</uni-list-item>
+			<uni-list-item title="账号" clickable :rightText="userInfo.user_name" />
+			<uni-list-item title="密码" clickable rightText="********" @click="openPasswordDialog" link />
+			<uni-list-item title="昵称" :rightText="userInfo.nick_name"  clickable link @click="openNickNameDialog"/>
+			<uni-list-item title="性别" clickable :rightText="userInfo.gender" />
+			<uni-list-item title="希望收到的消息"  clickable link />
+			<uni-list-item title="会员" clickable link @click="gotoPage('vip')" />
+		</uni-list>
+		
+		<view class="padder"></view>
+		<uni-list :border="false">
+			<uni-list-item title="回收站" link @click="gotoPage('shieldlist')" />
+			<uni-list-item title="清除聊天记录" clickable  link/>
+			<uni-list-item title="意见反馈" clickable link />
+		</uni-list>
+		
+		<view class="padder"></view>	
+		<uni-list :border="false">
+			<uni-list-item title="退出登录" clickable @click="onLogOut" link />
+			<uni-list-item title="注销" clickable link />
+		</uni-list>
+
+		<view class="padder"></view>
+		<uni-list :border="false">
+			<uni-list-item title="关于" :right-text="appVersion" />
+		</uni-list>
+		
+		<view>
+			<!-- 昵称修改 -->
+			<uni-popup ref="nickNameDialog" type="dialog">
+				<uni-popup-dialog ref="inputClose"  mode="input" title="修改昵称" :value="userInfo.nick_name"
+					confirmText="确定"
+					cancelText="取消"
+					placeholder="请输入新的昵称" @confirm="updateNickName"></uni-popup-dialog>
+			</uni-popup>
+		</view>
+		
+		<view>
+			<!-- 密码修改 -->
+			<uni-popup ref="passwordDialog" type="dialog"  backgroundColor="#fff">
+				<view class="popup-content">
+					<uni-forms ref="baseForm" :modelValue="passwordData" class="password-dialog" label-width="100">
+						<uni-forms-item label="新密码" required>
+							<uni-easyinput type="password" v-model="passwordData.newPassword" placeholder="请输入新密码" />
+						</uni-forms-item>
+						<uni-forms-item label="确认新密码" required>
+							<uni-easyinput type="password" v-model="passwordData.confirmPassword" placeholder="请输入确认密码" />
+						</uni-forms-item>
+						<button size="mini" class="button" type="primary" @click="submitPassword">提交</button>
+					</uni-forms>
+				</view>
+			</uni-popup>
+		</view>
+	</view>
+</template>
+
+<script>
+	import {logout, updateUserInfo, updatePassword, isVip, getPrices} from '@/server/index';
+	import { upload } from '@/utils/OSS';
+	import Avatar from '@/components/avatar.vue';
+	
+	export default {
+		data() {
+			return {
+				userInfo: {
+					user_avatar: '',
+					user_name: '',
+					nick_name: ''
+				},
+				passwordData: {
+					newPassword: '',
+					confirmPassword: '',
+				},
+				avatarStyles: {
+					"height": 40,	// 边框高度
+					"width": 40,	// 边框宽度
+					"border": { // 如果为 Boolean 值，可以控制边框显示与否
+						"style":"none", 	// 边框样式
+						"radius":"50%" 		// 边框圆角，支持百分比
+					}
+				},
+				appVersion: '',
+				isVip: false,
+				activePrice: '',
+				prices: []
+			}
+		},
+		components: { Avatar },
+		methods: {
+			getUserInfo(){
+				const userInfo = uni.getStorageSync('userInfo');
+				const {user_name, user_avatar, nick_name, gender} = userInfo;
+				this.userInfo = {
+					user_avatar,
+					user_name,
+					nick_name,
+					gender: gender === 1 ? '男' : '女'
+				}
+				console.log('this.userInfo===', this.userInfo)
+				isVip((res) => {
+					this.isVip = res.data;
+					if(!res.data) {
+						getPrices((pricesData) => {
+							console.log('pricesData===', pricesData)
+							
+							this.prices = pricesData.data;
+						})
+					}
+				})
+			},
+			uploadAvatar() {
+				let _this = this;
+				uni.chooseImage({
+					count: 1,
+					sizeType: ['original', 'compressed'],
+					crop: {
+						width: 200,
+						height: 200
+					},
+					success: function(res) {
+						const localPath = res.tempFilePaths[0];
+						
+						upload({
+							fileType: 'images', 
+							fileLocalPath: localPath,
+							module: 'useravatar',
+							success: (res, url) => {
+								updateUserInfo({user_avatar: url}, (res)=>{
+									_this.userInfo.user_avatar = url;
+									_this.updateCacheUserInfo(_this.userInfo);
+								}) 
+								
+								uni.showToast({
+									title: '头像替换成功',
+									icon: 'success',
+									duration: 1000
+								});
+							},
+							fail: ()=>{
+								uni.showToast({
+									title: '头像替换失败',
+									icon: 'none',
+								});
+							}
+						})
+					}
+				})
+			},
+			onLogOut() {
+				uni.showModal({
+					title: '提示',
+					content: '退出当前账号？',
+					success: function (res) {
+						if (res.confirm) {
+							logout(() => {
+								uni.removeStorageSync('accessToken');
+								uni.removeStorageSync('userInfo');
+								uni.$emit('logout');
+								uni.navigateTo({
+									url: '/pages/login/login'
+								})
+							})
+						} else if (res.cancel) {
+							console.log('用户点击取消');
+						}
+					}
+				})
+			},
+			updateNickName(value) {
+				let _this = this;
+				if(value.trim()) {
+					updateUserInfo({nick_name: value}, (res)=>{
+						_this.userInfo.nick_name = res.data.nick_name;
+						_this.updateCacheUserInfo(_this.userInfo);
+					}) 
+				}
+			},
+			submitPassword() {
+				let _this = this;
+				if(this.passwordData.newPassword !== this.passwordData.confirmPassword) {
+					uni.showModal({
+						icon: 'none',
+						content: '输入密码不一致',
+						confirmText: "确定",
+						showCancel: false
+					});
+					return;
+				}
+				const newPassWord = this.passwordData.newPassword.trim()
+				if(newPassWord.length < 8) {
+					uni.showModal({
+						icon: 'none',
+						content: '密码长度至少是8位',
+						confirmText: "确定",
+						showCancel: false
+					});
+					return;
+				}
+				updateUserInfo({
+					password: newPassWord
+				}, (res) => {
+					const oldAccount = uni.getStorageSync('account');
+					uni.setStorageSync('account', {
+						userName: oldAccount.userName,
+						password: newPassWord
+					});
+					
+					uni.showToast({
+						title: '密码修改成功',
+						icon: 'none',
+					});
+					
+					_this.$refs.passwordDialog.close()
+				})
+			},
+			openNickNameDialog() {
+				this.$refs.nickNameDialog.open()
+			},
+			openPasswordDialog() {
+				this.$refs.passwordDialog.open()
+			},
+			updateCacheUserInfo(newInfo) {
+				const cache = uni.getStorageSync('userInfo');
+				uni.setStorageSync('userInfo', {
+					...cache,
+					...newInfo
+				});
+			},
+			gotoPage(page) {
+				if(page ==='shieldlist') {
+					uni.navigateTo({
+						url: '/pages/shieldlist/shieldlist'
+					})
+				} else if(page ==='vip') {
+					uni.navigateTo({
+						url: '/pages/vip/vip'
+					})
+				}
+				
+			}
+		},
+		beforeMount() {
+			let _this = this;
+			this.getUserInfo();
+			uni.$on('login',(data) => {
+				_this.getUserInfo();
+			})
+		},
+		mounted() {
+			const _this = this;
+			uni.getSystemInfo({
+				success: function(res) {
+					_this.appVersion = res.appVersion;
+				}
+			})
+		}
+	}
+</script>
+
+<style lang="scss">
+	.page-wrap {
+		width: 750rpx;
+		padding: 5px;
+	}
+	.slot-title {
+		font-size: 12px;
+		margin-top: 5px;
+	}
+	.padder{
+		background-color: $uni-bg-color-grey;
+		height: 6px;
+	}
+	.slot-image {
+		/* #ifndef APP-NVUE */
+		display: block;
+		/* #endif */
+		margin-right: 10px;
+		width: 35px;
+		height: 35px;
+	}
+	.popup-content {
+		padding: 20px;
+		background-color: #fff;
+		min-width: 350px;
+		border-radius: 20px;
+	}
+	.password-dialog{
+		background-color: #fff;
+		.button {
+			border-radius: 20px;
+		}
+	}
+	.prices-scroll-view {
+		display: flex;
+		flex-direction: row;
+		flex-wrap: nowrap;
+		white-space: nowrap;
+		width: 300px;
+		overflow-x: auto;
+		.scroll-view-item {
+			display: inline-flex;
+			flex-direction: column;
+			justify-content: center;
+			align-items: center;
+			flex-basis: 88px;
+			flex-shrink: 0;
+			width: 200px;
+			height: 150px;
+			background-color: #fff;
+			border-radius: 10px;
+			margin: 10px;
+			text-align: center;
+			
+		}
+		.title {
+			font-size: 18px;
+		}
+		.amount {
+			font-size: 28px;
+			color: darkred;
+		}
+		.active {
+			border: 1px solid #cc0;
+			background-color: #cc0;
+			color: #fff;
+		}
+	}
+	
+</style>

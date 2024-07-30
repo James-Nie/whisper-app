@@ -1,0 +1,148 @@
+<template>
+	<view class="register-wrap">
+		<uni-forms ref="submitForm" :modelValue="formData" :rules="rules" label-align="right" err-show-type="toast">
+			<uni-forms-item label="账号" name="userName" required>
+				<uni-easyinput type="text" v-model="formData.userName" placeholder="请输入账号" />
+			</uni-forms-item>
+			<uni-forms-item label="密码" name="password" required>
+				<uni-easyinput type="password" v-model="formData.password" placeholder="请输入密码" />
+			</uni-forms-item>
+			<uni-forms-item label="昵称" name="nickName" required>
+				<uni-easyinput type="text" v-model="formData.nickName" placeholder="请输入昵称" />
+			</uni-forms-item>
+			<uni-forms-item label="性别" required>
+				<radio-group @change="radioChange" class="radio-group">
+					<view v-for="(item, index) in genders" :key="item.value" class="radio-item">
+						<radio :value="item.value" :checked="item.value === formData.gender" /><label
+							class="radio">{{item.text}}</label>
+					</view>
+				</radio-group>
+			</uni-forms-item>
+		</uni-forms>
+		<button @click="submitForm" type="primary" class="register-btn" >注册</button>
+	</view>
+</template>
+
+<script>
+	import {
+		register
+	} from '../../server/index';
+
+	export default {
+		data() {
+			return {
+				formData: {
+					userName: '',
+					password: '',
+					nickName: '',
+					gender: null
+				},
+				genders: [{
+					text: '男',
+					value: 1
+				}, {
+					text: '女',
+					value: 0
+				}],
+				rules: {
+					userName: {
+						rules: [{
+							required: true,
+							errorMessage: '账号不能为空'
+						},{
+							pattern: /^[a-zA-Z][a-zA-Z0-9_]{4,15}$/,
+							errorMessage: '账号以字母开头，由字母数字下划线组成'
+						}]
+					},
+					password: {
+						rules: [{
+							required: true,
+							errorMessage: '密码不能为空'
+						}]
+					},
+					nickName: {
+						rules: [{
+							required: true,
+							errorMessage: '昵称不能为空'
+						}]
+					},
+					gender: {
+						rules: [{
+							required: true,
+							errorMessage: '请选择性别'
+						}]
+					}
+				}
+			}
+		},
+		methods: {
+			radioChange: function(evt) {
+				for (let i = 0; i < this.genders.length; i++) {
+					if (this.genders[i].value === evt.detail.value) {
+						this.formData.gender = evt.detail.value;
+						break;
+					}
+				}
+			},
+			submitForm() {
+				this.$refs.submitForm.validate().then(formData => {
+					console.log('formData===', formData)
+					let deviceId = uni.getStorageSync('deviceId');
+					const registerform = {
+						deviceId,
+						gender: this.formData.gender,
+						...formData
+					}
+					register({
+						data: registerform,
+						success: (res) => {
+							if (res.success) {
+								uni.showToast({
+									title: '注册成功，请登录'
+								})
+								uni.navigateTo({
+									url: '/pages/login/login'
+								})
+							}
+					
+						}
+					})
+				})
+			}
+		}
+	}
+</script>
+
+<style lang="scss">
+	.register-wrap {
+		padding: 30rpx;
+		width: 750rpx;
+	}
+
+	.register-btn {
+		background-color: #42b983;
+		color: #fff;
+		height: 40px;
+		border-radius: 20px;
+		margin-top: 10px;
+		border: none;
+	}
+
+	.radio-group {
+		display: flex;
+		flex-direction: row;
+		align-items: flex-start;
+		width: 350rpx;
+		margin-top: 5px;
+
+		.radio-item {
+			display: flex;
+			flex-direction: row;
+			align-items: flex-start;
+		}
+
+		.radio {
+			padding: 0 10px 0 5px;
+		}
+	}
+</style>

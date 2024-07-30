@@ -1,0 +1,226 @@
+<template>
+	<view class="login-wrap">
+		<uni-forms ref="loginForm" :modelValue="formData"
+			:rules="rules"
+			label-align="right" err-show-type="toast">
+			<uni-forms-item label="账号" name="userName" required>
+				<uni-easyinput type="text" v-model="formData.userName" placeholder="请输入账号" />
+			</uni-forms-item>
+			<uni-forms-item label="密码" name="password" required>
+				<uni-easyinput type="password" v-model="formData.password" placeholder="请输入密码"></uni-easyinput>
+			</uni-forms-item>
+		</uni-forms>
+		
+		<view class="tips">
+			<radio-group @change="radioChange">
+				<radio :value="1" :checked="userAgreement === 1 " />
+			</radio-group>
+			阅读并同意 <br/>
+			<Link url="http://localhost:3000/static/user-agreement.html" text="《用户服务协议》"></Link>和<Link url="http://localhost:3000/static/privacy-policy.html" text="《隐私政策》"></Link>
+		</view>
+		<button @click="submitForm" type="primary" class="login-btn" >登录</button>
+		
+		<view class="footer">
+			<text class="btn" @click="resetPassword">忘记密码</text>
+			<text class="btn" @click="gotoRegister">注册</text>
+		</view>
+		
+		<view class="history-account" v-if="cacheAccount.userName && cacheAccount.password">
+			<view class="item-line">
+				<view class="line"></view>历史登录账号<view class="line"></view>
+			</view>
+			<text class="cache-user-btn" @click="loginAccount(cacheAccount)">{{cacheAccount.userName}}</text>
+		</view>
+
+	</view>
+</template>
+
+<script>
+	import { login } from '@/server/index';
+	import Link from '@/components/link.vue';
+	
+	export default {
+		data() {
+			return {
+				userAgreement: 0,
+				formData: {
+					userName: '',
+					password: ''
+				},
+				cacheAccount: {},
+				rules: {
+					userName: {
+						rules: [{
+							required: true,
+							errorMessage: '账号不能为空'
+						},{
+							
+						}]
+					},
+					password: {
+						rules: [{
+							required: true,
+							errorMessage: '密码不能为空'
+						}]
+					}
+				}
+			}
+		},
+		components: { Link },
+		onLoad() {
+			const cacheAccount = uni.getStorageSync('account');
+			if(cacheAccount.userName && cacheAccount.password) {
+				this.cacheAccount = cacheAccount;
+			}
+		},
+		onBackPress(option){
+			console.log('onBackPress options', option)
+			return true;
+		},
+		methods: {
+			loginAccount(formData) {
+				const _this = this;
+				console.log('this.userAgreement==', this.userAgreement)
+				if(!this.userAgreement) {
+					uni.showModal({
+						title: '提示',
+						content: '请阅读并勾选用户协议',
+						success: function (res) {
+							if (res.confirm) {
+								
+							} else if (res.cancel) {
+								console.log('用户点击取消');
+							}
+						}
+					});
+					return;
+				}
+				login({
+					data: formData,
+					success: (res)=>{
+						if(res.success && res.data.accessToken) {
+							uni.setStorageSync('accessToken', res.data.accessToken);
+							uni.setStorageSync('account', formData);
+							uni.setStorageSync('userInfo', res.data.userBasicMes);
+							uni.$emit('login');
+							uni.switchTab({
+								url: '/pages/tabBar/dialog/dialog'
+							})
+						}else {
+							uni.showToast({
+								icon: 'none',
+								title: res.message
+							});
+						}
+						
+					}
+				})
+			},
+			submitForm() {
+				let _this = this;
+				this.$refs.loginForm.validate().then(res => {
+					_this.loginAccount(res)
+				})
+			},
+			gotoRegister() {
+				uni.navigateTo({
+					url: '/pages/register/register'
+				})
+			},
+			resetPassword() {
+				
+			},
+			radioChange(evt) {
+				this.userAgreement = evt.detail.value;
+			}
+		}
+	}
+</script>
+
+<style scoped lang="scss">
+.login-wrap {
+	width: 750rpx;
+	padding: 30rpx;
+	.tips {
+		display: flex;
+		flex-direction: row;
+		justify-content: flex-start;
+		font-size: 10px;
+		transform: scale(0.8);
+		text-align: left;
+	}
+	.login-btn {
+		background-color: #42b983;
+		color: #fff;
+		height: 40px;
+		border-radius: 20px;
+		margin-top: 30px;
+		border: none;
+	}
+	.login-btn:active {
+		background-color: $uni-bg-color-hover;
+	}
+	.footer {
+		display: flex;
+		flex-direction: row;
+		justify-content: space-around;
+		margin: 20px 0;
+		.btn {
+			color: blueviolet;
+			cursor: pointer;
+		}
+	}
+	.history-account {
+		margin-top: 10px;
+		.item-line {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-around;
+			align-items: center;
+			font-size: 12px;
+			text-align: center;
+			.line {
+				display: inline-block;
+				height: 1px;
+				border-top: solid 1px #ccc;
+				width: 100px;
+			}
+		}
+		.cache-user-btn {
+			font-size: 12px;
+			text-align: center;
+			color: $uni-color-warning;
+			margin-top: 10px;
+		}
+	}
+	.popup-warp {
+		padding: 20px;
+		background-color: #fff;
+		border-top-left-radius: 10px;
+		border-top-right-radius: 10px;
+		.popup-content {
+			display: flex;
+			flex-direction: row;
+			flex-wrap: wrap;
+			padding: 20px 10px;
+			font-size: 12px;
+		}
+		.btn-wrap {
+			display: flex;
+			flex-direction: row;
+			justify-content: center;
+		}
+		.btn {
+			background-color: #42b983;
+			color: #fff;
+			width: 200px;
+			height: 30px;
+			border-radius: 15px;
+			margin-top: 10px;
+			border: none;
+		}
+	}
+	
+}
+
+</style>

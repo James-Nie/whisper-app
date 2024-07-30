@@ -1,0 +1,193 @@
+<template>
+	<view>
+		<uni-list :border="false">
+			<uni-list-item title="头像">
+				<template v-slot:footer>
+					<Avatar
+						width="35"
+						height="35"
+						fontSize="14"
+						:url="userInfo.avatar"
+						:nickName="userInfo.nickName"
+					></Avatar>
+				</template>
+			</uni-list-item>
+			<uni-list-item title="昵称" :rightText="userInfo.nickName" clickable />
+			<uni-list-item title="投诉" v-if="!isMe" clickable @click="complaint" />
+			<uni-list-item title="清除聊天记录" v-if="!isMe" clickable @click="clearChatRecords" />
+		</uni-list>
+
+		<view class="btn-list">
+			<button class="button" type="primary" size="mini" @click="sendMessage" v-if="!isShield && !isMe">发消息</button>
+			<button class="button" type="warn" size="mini" v-if="isFriend" @click="shield">屏蔽删除</button>
+			<button class="button" type="warn" size="mini" @click="returnToNormal" v-if="isShield">恢复正常</button>
+		</view>
+	</view>
+</template>
+
+<script>
+	import { mapMutations, mapGetters } from 'vuex'
+	import { shieldFriend, toNormalFriend, complaint, getDialogInfo } from '@/server/index';
+	import Avatar from '@/components/avatar.vue';
+	
+	export default {
+		data() {
+			return {
+				userInfo: { // 用户信息
+					userId: '',
+					avatar: '',
+					userName: '',
+					nickName: ''
+				},
+				isFriend: false,
+				isShield: false,
+				isMe: false,
+				loginUser: {} ,// 登录用户
+				dialogInfo: {}
+			}
+		},
+		components: { Avatar },
+		computed:{
+			...mapGetters([
+				'friendsId'
+			])
+		},
+		onLoad(option) {
+			this.loginUser = uni.getStorageSync('userInfo');
+			
+			const {userId, userName, nickName, avatar} = option;
+			this.userInfo = {
+				userId,
+				userName,
+				nickName,
+				avatar
+			}
+			this.isFriend = this.friendsId.includes(this.userInfo.userId);
+			
+			if(option.from && option.from === 'recycle') {
+				this.isShield = true;		
+			}
+			
+			this.isMe = (userId === this.loginUser.user_id);
+			
+			this.getDialogInfo();
+		},
+		methods: {
+			...mapMutations(['removeMessage']),
+			complaint() {
+				let _this = this;
+				uni.showModal({
+					title: '投诉举报',
+					content: '恶意举报他人会导致您当前账号被封，请谨慎填写投诉理由',
+					editable: true,
+					success: function (res) {
+						if (res.confirm && res.content) {
+							console.log('用户点击确定');
+							// todo
+							complaint({
+								content: res.content.trim(),
+								complainedUserId: _this.userInfo.userId
+							})
+						} else if (res.cancel) {
+							console.log('用户点击取消');
+						}
+					}
+					
+				})
+			},
+			sendMessage() {
+				const { userId, userName, nickName, avatar } = this.userInfo;
+				uni.setStorageSync('dialogFromUser', {
+					userId,
+					userName,
+					nickName,
+					avatar
+				})
+				setTimeout(()=>{
+					uni.navigateTo({
+						url: `/pages/message/message?from=userinfo&dialogId=${this.dialogInfo.dialogId}`
+					})
+				}, 50)
+			},
+			returnToNormal() {
+				let _this = this;
+				uni.showModal({
+					title: '恢复',
+					content: '恢复此账号到好友列表？',
+					success: function (res) {
+						if (res.confirm) {
+							toNormalFriend({
+								friendUserId:  _this.userInfo.userId
+							}, (res) => {
+								uni.navigateBack()
+							})
+						} else if (res.cancel) {
+							console.log('用户点击取消');
+						}
+					}
+				})
+				
+			},
+			clearChatRecords() {
+				let _this = this;
+				uni.showModal({
+					title: '清除聊天记录',
+					content: '确定要清除与此人的聊天记录',
+					success: function (res) {
+						if (res.confirm) {
+							_this.removeMessage({userId: _this.userInfo.userId});
+						} else if (res.cancel) {
+							console.log('用户点击取消');
+						}
+					}
+				})
+			},
+			shield() {
+				let _this = this;
+				uni.showModal({
+					title: '屏蔽',
+					content: '屏蔽后将不会收到对方发来的消息，请谨慎操作',
+					success: function (res) {
+						if (res.confirm) {
+							// todo
+							shieldFriend({
+								friendUserId:  _this.userInfo.userId
+							}, (res) => {
+								uni.navigateBack()
+							})
+						} else if (res.cancel) {
+							console.log('用户点击取消');
+						}
+					}
+				})
+			},
+			getDialogInfo() {
+				getDialogInfo({
+					dialogFromId: this.loginUser.user_id,
+					dialogTargetId: this.userInfo.userId
+				}, (res) => {
+					console.log('getDialogInfo===', res)
+					if(res.success) {
+						this.dialogInfo = res.data;
+					}
+				})
+			}
+		}
+	}
+</script>
+
+<style lang="scss">
+	
+	.btn-list{
+		display: flex;
+		flex-direction: column;
+		margin-top: 30px;
+		padding: 20px;
+		justify-content: space-around;
+		.button {
+			margin-bottom: 20px;
+			border-radius: 20px;
+		}
+	}
+	
+</style>

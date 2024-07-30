@@ -1,0 +1,165 @@
+{
+	"pages": [ //pages数组中第一项表示应用启动页，参考：https://uniapp.dcloud.io/collocation/pages
+		{
+			"path": "pages/tabBar/dialog/dialog",
+			"style": {
+				"navigationBarTitleText": "消息",
+				"enablePullDownRefresh": false,
+				"app-plus": {
+					"titleNView": {
+						
+					},
+					"bounce":"none"
+				}
+			}
+
+		}, {
+			"path": "pages/tabBar/my/my",
+			"style": {
+				"navigationBarTitleText": "个人资料",
+				"enablePullDownRefresh": false
+			}
+
+		}, {
+			"path": "pages/tabBar/friend/friend",
+			"style": {
+				"navigationBarTitleText": "好友",
+				"enablePullDownRefresh": false,
+				"app-plus": {
+					"bounce":"none"
+				}
+			}
+
+		}, {
+			"path": "pages/register/register",
+			"style": {
+				"navigationBarTitleText": "注册",
+				"enablePullDownRefresh": false,
+				"app-plus": {
+					"titleNView": {
+						"titleText": "注册"
+					}
+				}
+			}
+
+		},
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "",
+				"enablePullDownRefresh": false
+			}
+
+		},
+		{
+			"path": "pages/login/login",
+			"style": {
+				"navigationBarTitleText": "登录",
+				"enablePullDownRefresh": false,
+				"app-plus": {
+					"titleNView": {
+						"autoBackButton": false
+					}
+				}
+			}
+
+		},
+		{
+			"path": "pages/message/message",
+			"style": {
+				"navigationBarTitleText": "",
+				"enablePullDownRefresh": false,
+				"app-plus": {
+					"titleNView": {
+						"titleText": "消息",
+						"buttons": [ //原生标题栏按钮配置,
+							{
+								"type": "menu",
+								"text": "分享"
+							}
+						]
+					}
+				}
+				
+			}
+
+		},{
+            "path" : "pages/userInfo/userInfo",
+            "style" :                                                                                    
+            {
+                "navigationBarTitleText": "",
+                "enablePullDownRefresh": false
+            }
+            
+        },{
+            "path" : "pages/shieldlist/shieldlist",
+            "style" :                                                                                    
+            {
+                "navigationBarTitleText": "",
+                "enablePullDownRefresh": false
+            }
+            
+        },{
+            "path" : "pages/webview/webview",
+            "style" :                                                                                    
+            {
+                "navigationBarTitleText": "",
+                "enablePullDownRefresh": false
+            }
+            
+        }
+        ,{
+            "path" : "pages/vip/vip",
+            "style" :                                                                                    
+            {
+                "navigationBarTitleText": "会员",
+                "enablePullDownRefresh": false
+            }
+            
+        }
+        ,{
+            "path" : "pages/message/newMessages",
+            "style" :                                                                                    
+            {
+                "navigationBarTitleText": "",
+                "enablePullDownRefresh": false
+            }
+            
+        }
+    ],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "密语",
+		"navigationBarBackgroundColor": "#F8F8F8",
+		"backgroundColor": "#F8F8F8"
+	},
+	"app-plus": {
+		"softinputMode": "adjustResize",
+		"softinputNavBar": "none"
+	},
+	"uniIdRouter": {},
+	"tabBar": {
+		"color": "#7A7E83",
+		"selectedColor": "#207665",
+		"borderStyle": "black",
+		"backgroundColor": "#F8F8F8",
+		"list": [{
+				"pagePath": "pages/tabBar/dialog/dialog",
+				"iconPath": "static/tabbar/dialog.png",
+				"selectedIconPath": "static/tabbar/dialog-select.png",
+				"text": "消息"
+			},
+			{
+				"pagePath": "pages/tabBar/friend/friend",
+				"iconPath": "static/tabbar/friends.png",
+				"selectedIconPath": "static/tabbar/friends-select.png",
+				"text": "好友"
+			}, {
+				"pagePath": "pages/tabBar/my/my",
+				"iconPath": "static/tabbar/my.png",
+				"selectedIconPath": "static/tabbar/my-select.png",
+				"text": "我的"
+			}
+		]
+	}
+}

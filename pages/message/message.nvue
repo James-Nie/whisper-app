@@ -1,0 +1,411 @@
+<template>
+	<view class="page" :style="{'height': pageHeight+'px'}">
+		<scroll-view
+			scroll-y="true"
+			class="message-wrap"
+			:style="{'height': pageHeight+'px'}"
+			:scroll-top="commentScrollTop"
+		>
+			<template v-for="(item, index) in chatList" :key="index">
+				<view class="receive message-list" v-if="item.from.userId === fromUserInfo.userId">
+					<Avatar :url="item.from.avatar" :nickName="item.from.nickName" @click="clickUserInfo(item.from)"></Avatar>
+					<text class="message-text" v-if="item.messageContentType === 'text' ">{{item.messageContent || ' '}}</text>
+					<text class="message-image" v-else-if="item.messageContentType === 'image' " @click="priviewImage(item)">图片</text>
+					<view class="message-audio" v-else-if="item.messageContentType === 'audio' " @click="audioPlay(item)">
+						<image class="icon" src="/static/audio.png" mode="widthFix" v-if="item.messageContentType === 'audio' "></image>
+						<text class="audio-text">6''</text>
+					</view>
+				</view>
+				
+				<view class="sending message-list" v-else-if="item.from.userId === userInfo.user_id">
+					<text class="message-text" v-if="item.messageContentType === 'text' ">{{item.messageContent}}</text>
+					<text :class="['message-image', item.read ? 'read' : '']" v-else-if="item.messageContentType === 'image' " @click="priviewImage(item)" >图片</text>
+					<view class="message-audio" v-else-if="item.messageContentType === 'audio' ">
+						<text class="audio-text">6''</text>
+						<image class="icon" src="/static/audio.png" mode="widthFix" v-if="item.messageContentType === 'audio' "></image>
+					</view>
+					<Avatar :url="item.from.avatar" :nickName="item.from.nickName" @click="clickUserInfo(item.from)"></Avatar>
+				</view>
+			</template>
+			<view class="permission">
+				<!-- <text class="button" @click="accept" v-if="!acceptState.isAcceptFrom">认可</text> -->
+				<text class="button" @click="addFriend" v-if="!friendState.isFriendFrom">加好友</text>
+			</view>
+			<MessageInput
+				showEmoji
+				:canSendImage="acceptState.isAcceptTo"
+				@submit="sendMessageData"
+				:placeholder="'发送给'+ fromUserInfo.nickName ">
+			</MessageInput>
+		</scroll-view>
+	</view>
+</template>
+
+<script>
+	import { mapGetters, mapMutations } from 'vuex';
+	import MessageInput from '@/components/message-input.vue';
+	import Avatar from '@/components/avatar.vue';
+	import { addFriend, isFriend, accept, checkIsAccept, getMessagesHistory } from '@/server/index';
+	import { audio } from '@/utils/audio';
+	
+	export default {
+		components: { MessageInput, Avatar },
+		data() {
+			return {
+				dialogId: '',
+				dialogData: {},
+				tempDialogId: '',
+				userInfo: {}, //当前登录用户
+				fromUserInfo: {}, // 对话用户
+				friendState: {
+					isFriendFrom: false, // 对方是我的好友
+					isFriendTo: false // 我是对方的好友
+				},
+				acceptState: {
+					isAcceptFrom: false, // 我认可对方
+					isAcceptTo: false // 对方认可我
+				},
+				pageHeight: '',
+				commentScrollTop: 0
+			}
+		},
+		onLoad: function (option) {
+			this.setFromUserInfo(option.from);
+			if(option.dialogId) {
+				this.dialogId = option.dialogId;
+			} else if(option.tempDialogId) {
+				this.tempDialogId = option.tempDialogId;
+			} else {
+				// 从好友列表进来，需要通过用户id查询对应的对话信息
+				this.dialogList.forEach(item => {
+					if(item.dialogTargetId === this.fromUserInfo.userId) {
+						this.dialogId = item.dialogId
+					}
+				})
+			}
+			
+			if(this.dialogId) {
+				this.dialogData = this.dialogList.find(item => {
+					return this.dialogId = item.dialogId;
+				});
+			} else {
+				this.dialogData = {}
+			}
+			
+			this.checkIsAccept();
+			this.checkIsFriend();
+			this.getMessagesHistory();
+		},
+		mounted() {
+			let _this = this;
+			const userInfo = uni.getStorageSync('userInfo');
+			this.userInfo = userInfo;
+			
+			uni.$on('updateMessageDialogId', (dialogId)=>{
+				this.dialogId = dialogId;
+			})
+			
+			// 对方添加我为好友
+			uni.$on("addFriendFrom", (data) => {
+				if(data.fromUserId === this.fromUserInfo.userId) {
+					this.friendState.isFriendTo = true;
+				}
+			})
+			
+			// 对方认可我
+			uni.$on("acceptFriendFrom", (data) => {
+				if(data.fromUserId === this.fromUserInfo.userId) {
+					this.acceptState.isAcceptTo = true;
+				}
+			})
+		},
+		onShow() {
+			// this.scrollY();
+		},
+		onUnload() {
+			// 退出当前页面，清空当前页面未读数
+			if(this.dialogId) {
+				uni.$emit('clearDialogUnreadNum', this.dialogId)
+			}
+		},
+		computed:{
+			...mapGetters([
+				'dialogList',
+				'messages',
+				'tempMessages'
+			]),
+			chatList() {
+				if(this.dialogId) {
+					return this.messages["_dialog_" + this.dialogId];
+				} else if(this.tempDialogId){
+					return this.tempMessages[this.tempDialogId];
+				}
+				return [];
+			},
+			// 本地最新的消息id
+			latestMessageId() {
+				if(this.chatList && this.chatList.length) {
+					const lastMessage = this.chatList.findLast(item => {
+						return item.from.userId === this.fromUserInfo.userId
+					})
+					return lastMessage ? lastMessage.messageId : '';
+				}
+				return '';
+			}
+		},
+		watch: {
+			messages(newVal, oldVal) {
+				console.log(111222, newVal)
+			},
+			chatList(newVal, oldVal) {
+				setTimeout(()=>{
+					console.log('new chatList===', newVal)
+					this.scrollY();	
+				}, 10)
+			}
+		},
+		methods: {
+			...mapMutations(['addMessage', 'updateMessageInfo', 'updateTempMessages']),
+			scrollY() {
+				const windowInfo = uni.getWindowInfo();
+				this.pageHeight = windowInfo.windowHeight - windowInfo.windowTop;
+				const chatHeight = this.chatList.length * 60;
+				this.commentScrollTop = chatHeight > this.pageHeight ?  chatHeight - this.pageHeight + 80 : 0;
+				console.log('this.commentScrollTop==', this.commentScrollTop, chatHeight, this.pageHeight)
+			},
+			// 预览
+			priviewImage(data) {
+				if(data.messageReadState === 0) {
+					uni.previewImage({
+						urls: [data.messageContent],
+						count: 1,
+						success: () => {
+							this.updateMessageInfo({
+								...data,
+								dialogId: this.dialogId,
+								messageReadState: 1,
+							})
+						}
+					})
+					return;
+				}
+				uni.showToast({
+					icon: 'none',
+					title: '图片已销毁, 不能再次预览'
+				})
+				
+			},
+			audioPlay(data) {
+				audio.play(data.messageContent);
+			},
+			// 离线数据同步
+			getMessagesHistory() {
+				if(this.dialogId) {
+					getMessagesHistory({
+						dialogId: this.dialogId,
+						pageNo: 1,
+						pageSize: this.dialogData.unreadNum,
+						latestMessageId: this.latestMessageId
+					}, (res) => {
+						console.log('getMessagesHistory===', res)
+						// console.log('getMessagesHistory===', this.dialogData, this.latestMessageId)
+						
+						if(res && res.data.total) {
+							res.data.list.forEach(item => {
+								this.addMessage({
+									dialogId: this.dialogId,
+									...item
+								})
+							})
+							
+						}
+					})
+				}
+			},
+			sendMessageData(data) {
+				if(this.tempDialogId && this.chatList.length ===2) {
+					uni.showToast({
+						icon: 'none',
+						title: '耐心等待对方回复, 再继续对话'
+					})
+					return;
+				}
+				const meesageData = {
+					message_from_id: this.userInfo.user_id,
+					message_to_id: this.fromUserInfo.userId,
+					message_type: 0,
+					message_content: data.content,
+					message_content_type: data.type || "text"
+				}
+				// 发送给对方
+				uni.$emit('sendMessage', meesageData);
+				
+				// 存储在本地的
+				const storeSendMessage = {
+					dialogId: this.dialogId || this.tempDialogId,
+				    from: {
+				        userId: this.userInfo.user_id,
+				        userName: this.userInfo.user_name,
+				        nickName: this.userInfo.nick_name,
+				        avatar: this.userInfo.user_avatar
+				    },
+				    target: this.fromUserInfo,
+				    messageContent: meesageData.message_content,
+				    messageContentType: meesageData.message_content_type,
+					messageCreatedTime: Date.now(),
+				    messageType: 0,
+					messageReadState: 0
+				}
+				if(this.dialogId) {
+					this.addMessage(storeSendMessage)
+				} else if(this.tempDialogId) {
+					this.updateTempMessages(storeSendMessage)
+				}
+				
+			},
+			setFromUserInfo(fromChannel) {
+				if(['search', 'userinfo', 'dialog'].includes(fromChannel)) {
+					this.fromUserInfo = uni.getStorageSync('dialogFromUser');
+				}
+				
+				if(this.fromUserInfo) {
+					uni.setNavigationBarTitle({
+						title: this.fromUserInfo.nickName
+					});
+				}
+				
+			},
+			clickUserInfo(info) {
+				const {userId, userName, nickName, avatar} = info;
+				uni.navigateTo({
+					url: `/pages/userInfo/userInfo?userId=${userId}&userName=${userName}&nickName=${nickName}&avatar=${avatar}`
+				})
+			},
+			// 添加对方好友
+			addFriend() {
+				uni.$emit('addFriend', {
+					userId: this.userInfo.user_id,
+					friendUserId: this.fromUserInfo.userId
+				})
+				
+				this.friendState.isFriendFrom = true;
+				uni.$emit('updateFriends')
+			},
+			// 认可对方
+			accept() {
+				uni.$emit('acceptFriend', {
+					userId: this.userInfo.user_id,
+					acceptUserId: this.fromUserInfo.userId
+				})
+				
+				this.acceptState.isAcceptFrom = true;
+			},
+			checkIsAccept() {
+				checkIsAccept({
+					userId: this.fromUserInfo.userId
+				}, (res) => {
+					if(res.success) {
+						this.acceptState = res.data;
+					}
+				})
+			},
+			checkIsFriend() {
+				isFriend({
+					userId: this.fromUserInfo.userId
+				}, (res) => {
+					if(res.success) {
+						this.friendState = res.data;
+					}
+				})
+			}
+		}
+	}
+</script>
+
+<style lang="scss">
+	.page {
+		min-height: 600px;
+		padding-bottom: 80px;
+		overflow-y: scroll;
+	}
+	.message-wrap {
+		width: 750rpx;
+		display: flex;
+		flex-direction: column;
+		padding-bottom: 80px;
+		.message-list {
+			display: flex;
+			flex-direction: row;
+			align-items: flex-start;
+			width: 750rpx;
+			padding: 0 12px;
+			margin: 8px 0;
+			.message-text {
+				margin: 0 10px;
+				max-width: 260px;
+				padding: 8px;
+				border-radius: 5px;
+				background-color: #fff;
+			}
+			.message-image {
+				width: 60px;
+				height: 60px;
+				margin: 0 8px;
+				font-size: 10px;
+				text-align: center;
+				line-height: 60px;
+				border: 1px solid $uni-border-color;
+				border-radius: 5px;
+			}
+			.message-image.read {
+				text-decoration: line-through;
+			}
+			.message-audio {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				width: 100px;
+				height: 35px;
+				background-color: #fff;
+				border-radius: 3px;
+				margin: 5px;
+				padding: 0 8px ;
+				.icon {
+					width: 20px;
+					height: 20px;
+				}
+				.audio-text {
+					margin-left: 5px;
+					// color: #fff;
+				}
+			}
+			
+		}
+		.receive {
+			justify-content: flex-start;
+		}
+		.sending {
+			justify-content: flex-end;
+		}
+		
+		.permission{
+			display: flex;
+			position: fixed;
+			right: -20px;
+			.button {
+				display: inline-flex;
+				margin: 10px;
+				padding: 5px 20px;
+				border-radius: 30px;
+				background-color: #42b983;
+				font-size: 15px;
+				color: #fff;
+				border: none;
+				box-shadow: 3px #42b983;
+				opacity: 0.8;
+			}
+		}
+		
+	}
+
+</style>

@@ -1,0 +1,362 @@
+<template>
+	<view class="message-box" @click="handlePageClick">
+		
+		<!-- <uni-notice-bar
+			show-icon
+			scrollable
+			background-color="#EAF2FF"
+			color="#f0ad4e"
+			text="请勿向他人发送色情、辱骂、涉政、宗教、赌博等违规信息，严重者将做封号处理；如果有人向您发送以上违规信息请及时向平台进行投诉举报。" /> -->
+		
+		<uni-list :border="true" v-if="lastTempMessage">
+			<uni-list-chat
+				:avatar-circle="true"
+				:avatar="noticeAvatar"
+				badge-positon="left"
+				badge-text="dot"
+				title="新消息"
+				:note="lastTempMessage.from.nickName"
+				clickable
+				@click="gotoNewMessages">
+					<view class="chat-custom-right">
+						<uni-dateformat class="time" :date="lastTempMessage.messageCreatedTime" :threshold="[300000, 3600000]" format="MM-dd hh:mm"></uni-dateformat>
+					</view>
+			</uni-list-chat>
+		</uni-list>
+		
+		<template>
+			<uni-swipe-action v-if="dialogList.length">
+				<template v-for="(item, index) in dialogList">
+					<uni-swipe-action-item
+						class="content-wrap"
+						:right-options="rightOption"
+						v-if="item.hide !== true "
+						@click="swipeClick($event, item)">
+						<view class="content-item" @click="toDialog(item)">
+							<view class="content-left">
+								<view class="avatar-wrap" >
+									<Avatar :url="item.dialogTarget.avatar" :nickName="item.dialogTarget.nickName" @click="toDialog(item)"></Avatar>
+									
+									<text class="unread" v-if="item.unreadNum">{{item.unreadNum}}</text>
+								</view>
+								<text class="name">{{item.dialogTarget.nickName}}</text>
+							</view>
+							<uni-dateformat class="time" :date="item.dialogLastTime" :threshold="[300000, 3600000]" format="MM-dd hh:mm"></uni-dateformat>
+						</view>
+					</uni-swipe-action-item>
+				</template>
+				
+			</uni-swipe-action>
+			
+			<Empty v-if="!dialogList.length" height="450px" text="咦，还没有收到消息" />
+		</template>
+		
+		<!-- <view class="operate-wrap">
+			<button type="primary" class="operate-btn" size="mini" @click.stop="toggleInput">发送</button>
+			<button type="primary" class="operate-btn" size="mini" @click.stop="searchTopic">搜索</button>
+		</view> -->
+
+		<MessageInput v-if="inputShow" @submit="sendMessage"></MessageInput>
+	</view>
+</template>
+
+<script>
+	import { mapGetters, mapMutations } from 'vuex';
+	import MessageInput from '@/components/message-input.vue';
+	import Avatar from '@/components/avatar.vue';
+	import Empty from '@/components/empty.vue';
+	import { getDialogList, updateDialog, createTopic, searchTopic } from '@/server/index';
+	import NoticeAvatar from '@/static/notice.png';
+	
+	export default {
+		components: {
+			MessageInput,
+			Avatar,
+			Empty
+		},
+		data() {
+			return {
+				noticeAvatar: NoticeAvatar,
+				inputShow: false,
+				rightOption: [
+					{
+						text: '标为已读',
+						style: {
+							backgroundColor: 'rgb(254,156,1)'
+						}
+					},
+					{
+						text: '删除',
+						style: {
+							backgroundColor: 'rgb(255,58,49)'
+						}
+					}
+				]
+			}
+		},
+		computed: {
+			...mapGetters([
+				'dialogList',
+				'lastTempMessage'
+			])
+		},
+		watch: {
+			dialogList(newV, oldV) {
+				console.log('dialogList===', newV);
+			}
+		},
+		onShow() {
+			// console.log('dialogList===', this.dialogList)
+		},
+		beforeMount() {
+			this.getDialogList();
+			uni.$on('clearDialogUnreadNum', (dialogId) => {
+				const newDialog = this.dialogList.find(item => {
+					return item.dialogId = dialogId;
+				})
+				// 更新未读数
+				if(newDialog.unreadNum) {
+					console.log('clearDialogUnreadNum===', newDialog)
+					
+					updateDialog({
+						dialogId: dialogId,
+						unreadNum: 0,
+					});
+					this.updateDialogs([{...newDialog, unreadNum: 0}])
+				}
+			})
+			
+			uni.$on('login', ()=>{
+				this.getDialogList();
+			})
+		},
+		methods: {
+			...mapMutations(['removeMessage', 'updateDialogs', 'updateTempMessages']),
+			toDialog(item) {
+				const { userId, userName, nickName, avatar } = item.dialogTarget;
+				// if(item.unreadNum) {
+				// 	updateDialog({
+				// 		dialogId: item.dialogId,
+				// 		unreadNum: 0,
+				// 	});
+				// 	this.updateDialogs([{...item, unreadNum: 0}])
+				// }
+				uni.setStorageSync('dialogFromUser', {
+					userId,
+					userName,
+					nickName,
+					avatar
+				})
+				
+				uni.navigateTo({
+					url: `/pages/message/message?dialogId=${item.dialogId}&from=dialog`
+				})
+			},
+			getDialogList() {
+				getDialogList({}, (res) => {
+					this.updateDialogs(res.data.list);
+				})
+			},
+			handlePageClick(event) {
+				this.inputShow = false;
+			},
+			toggleInput() {
+				this.inputShow = !this.inputShow;
+			},
+			sendMessage(data) {
+				let _this = this;
+				uni.showLoading({
+					title: '发送中',
+					mask: true
+				});
+				const {
+					content
+				} = data;
+				createTopic({
+					message: content
+				}, () => {
+					setTimeout(function() {
+						uni.hideLoading();
+						uni.showToast({
+							title: "发送成功，等待消息回复",
+							icon: "none",
+							mask: true,
+							success: function() {
+								_this.inputShow = false;
+							}
+						})
+					}, 2000);
+				})
+			},
+			searchTopic() {
+				uni.showLoading({
+					title: '搜索中',
+					mask: true
+				});
+				searchTopic((messageData) => {
+					let _this = this;
+					setTimeout(function() {
+						uni.hideLoading();
+						
+						if(!messageData.data.messageContent) {
+							uni.showToast({
+								icon: 'none',
+								title: '未收到消息，请重新搜索'
+							});
+							return;
+						}
+						uni.showModal({
+							title: '搜索成功',
+							content: `收到一条来自于 ${messageData.data.from.nickName} 的消息`,
+							showCancel: false,
+							confirmText: "进入对话",
+							success: function(res) {
+								if (res.confirm) {
+									// uni.setStorageSync('searchMessage', [messageData.data])
+									_this.updateTempMessages({
+										dialogId: messageData.data.from.userId,
+										...messageData.data
+									})
+									const {userId, userName, nickName, avatar} = messageData.data.from;
+									uni.setStorageSync('dialogFromUser', {
+										userId,
+										userName,
+										nickName,
+										avatar
+									});
+									uni.navigateTo({
+										url: `/pages/message/message?from=search&tempDialogId=${messageData.data.from.userId}`
+									});
+								}
+							}
+						});
+					}, 2000);
+				})
+			},
+			swipeClick(e, data) {
+				let { content } = e;
+				if (content.text === '删除') {
+					this.removeMessage({dialogId: data.dialogId})
+				} if (content.text === '标为已读') {
+					
+				} 
+			},
+			gotoNewMessages() {
+				uni.navigateTo({
+					url: '/pages/message/newMessages'
+				})
+			}
+		}
+	}
+</script>
+
+<style lang="scss">
+	.message-box{
+		min-height: 100vh;
+		padding-bottom: 80px;
+		
+		.tabs {
+			display: flex;
+		    flex: 1;
+		    flex-direction: row;
+		    overflow: hidden;
+		    background-color: #ffffff;
+		    /* #ifndef APP-PLUS */
+		    height: 100vh;
+		    /* #endif */
+			.uni-tab-item {
+			    /* #ifndef APP-PLUS */
+			    display: inline-block;
+			    /* #endif */
+			    flex-wrap: nowrap;
+			    padding-left: 34rpx;
+			    padding-right: 34rpx;
+			}
+			
+			.uni-tab-item-title {
+			    color: #555;
+			    font-size: 30rpx;
+			    height: 80rpx;
+			    line-height: 80rpx;
+			    flex-wrap: nowrap;
+			    /* #ifndef APP-PLUS */
+			    white-space: nowrap;
+			    /* #endif */
+			}
+			
+			.uni-tab-item-title-active {
+			    color: #007AFF;
+			}
+			
+		}
+		
+		.operate-wrap {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-around;
+			align-items: center;
+			width: 375px;
+			position: fixed;
+			bottom: 10px;
+			.operate-btn {
+				display: inline-flex;
+				width: 150px;
+				padding: 0 50px;
+				border-radius: 30px;
+				background-color: #42b983;
+				font-size: 20px;
+				color: #fff;
+				border: none;
+		
+			}
+		
+		}
+		.content-wrap{
+			border-bottom: 1px solid #e5e5e5;
+		}
+		.content-item {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-between;
+			align-items: center;
+			height: 70px;
+			padding: 0 15px;
+			border-top: 1px solid #e5e5e5;
+			.content-left {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+			}
+			.avatar-wrap {
+				position: relative;
+				display: flex;
+				flex-direction: row;
+				justify-content: flex-start;
+				align-items: center;
+			}
+			
+			.unread {
+				position: absolute;
+				display: block;
+				right: -5px;
+				top: -10px;
+				background-color: #dd524d;
+				height: 15px;
+				line-height: 15px;
+				padding: 0px 5px;
+				border-radius: 10px;
+				color: #fff;
+				font-size: 10px;
+			}
+			.name {
+				color: #3b4144;
+				font-size: 14px;
+				margin-left: 5px;
+			}
+		}
+		.time {
+			font-size: 12px;
+		}
+	}
+	
+</style>

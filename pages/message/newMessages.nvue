@@ -1,0 +1,133 @@
+<template>
+	<view class="page-wrap">
+		<uni-swipe-action v-if="tempDialogs.length">
+			<template v-for="(item, key) in tempDialogs">
+				<uni-swipe-action-item
+					class="content-wrap"
+					:right-options="rightOption"
+					@click="swipeClick($event, item)">
+					<view class="content-item" @click="toDialog(item)">
+						<view class="content-left">
+							<view class="avatar-wrap">
+								<Avatar :url="item.from.avatar" :nickName="item.from.nickName">
+								</Avatar>
+
+							</view>
+							<text class="name">{{item.from.nickName}}</text>
+						</view>
+						<uni-dateformat class="time" :date="item.messageCreatedTime" :threshold="[300000, 3600000]"
+							format="MM-dd hh:mm"></uni-dateformat>
+					</view>
+				</uni-swipe-action-item>
+			</template>
+
+		</uni-swipe-action>
+
+		<Empty v-if="!tempDialogs.length" height="450px" text="咦，还没有收到消息" />
+
+	</view>
+</template>
+
+<script>
+	import {
+		mapGetters,
+		mapMutations
+	} from 'vuex';
+	import Avatar from '@/components/avatar.vue';
+	import Empty from '@/components/empty.vue';
+
+	export default {
+		data() {
+			return {
+				tempDialogs: [],
+				rightOption: [
+					{
+						text: '删除',
+						style: {
+							backgroundColor: 'rgb(255,58,49)'
+						}
+					}
+				]
+			}
+		},
+		components: {
+			Avatar,
+			Empty
+		},
+		computed: {
+			...mapGetters([
+				'tempMessages'
+			]),
+			tempDialogs() {
+				const tempDialogs = [];
+				Object.keys(this.tempMessages).forEach(dialogId => {
+					tempDialogs.push(this.tempMessages[dialogId][0])
+				})
+				return tempDialogs;
+			}
+		},
+		methods: {
+			...mapMutations(['removeTempMessages']),
+			toDialog(item) {
+				console.log('toDialog===', item)
+				const { userId, userName, nickName, avatar } = item.from;
+				uni.setStorageSync('dialogFromUser', {
+					userId,
+					userName,
+					nickName,
+					avatar
+				});
+				uni.navigateTo({
+					url: `/pages/message/message?from=search&tempDialogId=${item.dialogId}`
+				});
+			},
+			swipeClick(e, data) {
+				console.log('data===', data)
+				let { content } = e;
+				if (content.text === '删除') {
+					this.removeTempMessages({dialogId: data.dialogId})
+				}
+			},
+		}
+	}
+</script>
+
+<style lang="scss">
+	.page-wrap {
+		min-height: 100vh;
+		padding-bottom: 80px;
+		.content-wrap{
+			border-bottom: 1px solid #e5e5e5;
+		}
+		.content-item {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-between;
+			align-items: center;
+			height: 70px;
+			padding: 0 15px;
+			border-top: 1px solid #e5e5e5;
+			.content-left {
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+			}
+			.avatar-wrap {
+				position: relative;
+				display: flex;
+				flex-direction: row;
+				justify-content: flex-start;
+				align-items: center;
+			}
+			
+			.name {
+				color: #3b4144;
+				font-size: 14px;
+				margin-left: 5px;
+			}
+			.time {
+				font-size: 12px;
+			}
+		}
+	}
+</style>
